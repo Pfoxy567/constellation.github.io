@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Constellation Station</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body, html { width:100%; height:100%; overflow:hidden; background:#0d0d25; font-family:Arial,sans-serif; }
+  canvas { display:block; cursor:pointer; }
+  #instructions {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: rgba(200,200,200,0.1);
+    font-size: 16px;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+<canvas id="particles"></canvas>
+<div id="instructions">
+Press "[" to add a star and use "]" to remove a star<br>
+Drag the stars and form constellations
+</div>
+<script>
+const canvas = document.getElementById('particles');
+const ctx = canvas.getContext('2d');
+let width = canvas.width = window.innerWidth;
+let height = canvas.height = window.innerHeight;
+
+window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; });
+
+let mouse = {x: width/2, y: height/2};
+canvas.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+const particles = [];
+const maxDist = 120;
+
+let dragParticle = null;
+let dragTarget = {x:0,y:0};
+let offsetX=0, offsetY=0;
+
+canvas.addEventListener('mousedown', e => {
+  for (let p of particles) {
+    const dx = mouse.x - p.x, dy = mouse.y - p.y;
+    if (Math.sqrt(dx*dx + dy*dy) < p.size*5) {
+      dragParticle = p;
+      offsetX = dx; offsetY = dy;
+      dragTarget.x = p.x;
+      dragTarget.y = p.y;
+      break;
+    }
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (dragParticle) {
+    dragTarget.x = e.clientX - offsetX;
+    dragTarget.y = e.clientY - offsetY;
+  }
+});
+
+canvas.addEventListener('mouseup', () => dragParticle = null);
+canvas.addEventListener('mouseleave', () => dragParticle = null);
+
+window.addEventListener('keydown', e => {
+  if(e.key === '[') addStarAtMouse();
+  else if(e.key === ']') removeStarAtMouse();
+});
+
+function addStarAtMouse(){
+  const p = {
+    x: mouse.x,
+    y: mouse.y,
+    vx: 0,
+    vy: 0,
+    size: Math.random()*3 + 1,
+    color: `hsl(${Math.random()*360},80%,70%)`,
+    neighbors: []
+  };
+  particles.push(p);
+}
+
+function removeStarAtMouse(){
+  let closest = null;
+  let minDist = Infinity;
+  for(let p of particles){
+    const dx = mouse.x - p.x, dy = mouse.y - p.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if(dist < p.size*5 && dist < minDist){
+      closest = p;
+      minDist = dist;
+    }
+  }
+  if(closest){
+    particles.splice(particles.indexOf(closest),1);
+  }
+}
+
+function animate(){
+  ctx.clearRect(0,0,width,height);
+
+  for(let p of particles) p.neighbors = [];
+  for(let i=0;i<particles.length;i++){
+    for(let j=i+1;j<particles.length;j++){
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if(dist < maxDist){
+        particles[i].neighbors.push(particles[j]);
+        particles[j].neighbors.push(particles[i]);
+      }
+    }
+  }
+
+  for(let p of particles){
+    for(let n of p.neighbors){
+      const dx = p.x - n.x;
+      const dy = p.y - n.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      ctx.strokeStyle = `rgba(173,216,230,${1-dist/maxDist})`;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(p.x,p.y);
+      ctx.lineTo(n.x,n.y);
+      ctx.stroke();
+    }
+  }
+
+  for(let p of particles){
+    for(let n of p.neighbors){
+      const dx = n.x - p.x;
+      const dy = n.y - p.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const force = (dist - maxDist*0.5)*0.002;
+      p.vx += dx/dist * force;
+      p.vy += dy/dist * force;
+    }
+
+    if(p===dragParticle){
+      const dx = dragTarget.x - p.x;
+      const dy = dragTarget.y - p.y;
+      p.vx += dx*0.2;
+      p.vy += dy*0.2;
+    }
+
+    p.vx += (Math.random()-0.5)*0.01;
+    p.vy += (Math.random()-0.5)*0.01;
+
+    p.x += p.vx;
+    p.y += p.vy;
+
+    p.vx *= 0.92;
+    p.vy *= 0.92;
+
+    if(p.x<0){p.x=0;p.vx*=-0.5;}
+    if(p.x>width){p.x=width;p.vx*=-0.5;}
+    if(p.y<0){p.y=0;p.vy*=-0.5;}
+    if(p.y>height){p.y=height;p.vy*=-0.5;}
+
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 6;
+    ctx.fill();
+  }
+
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>
